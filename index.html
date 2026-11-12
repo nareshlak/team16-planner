@@ -778,7 +778,13 @@ function msInRange(a, b) {
 var app = document.getElementById('app');
 function render() {
   if (gate !== 'app') { renderGate(); return; }
+  // Keep the reader's place: hold the page height while it is rebuilt, then restore the scroll.
+  var y = window.scrollY, g = document.getElementById('gantt'), gx = g ? g.scrollLeft : null;
+  app.style.minHeight = app.offsetHeight + 'px';
   renderApp();
+  app.style.minHeight = '';
+  var g2 = document.getElementById('gantt'); if (g2 && gx !== null) g2.scrollLeft = gx;
+  if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
 }
 function renderGate() {
   var body = '';
