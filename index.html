@@ -283,7 +283,14 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-const firebaseConfig = /*FIREBASE_CONFIG*/null/*END_FIREBASE_CONFIG*/;
+const firebaseConfig = /*FIREBASE_CONFIG*/{
+  apiKey: "AIzaSyDaNKQ8PaRdD7fTHehgBZ8Z8RTVOTN5Sc8",
+  authDomain: "team16planner-d0c4d.firebaseapp.com",
+  projectId: "team16planner-d0c4d",
+  storageBucket: "team16planner-d0c4d.firebasestorage.app",
+  messagingSenderId: "624166211257",
+  appId: "1:624166211257:web:83157bf55bf24d45c51568"
+}/*END_FIREBASE_CONFIG*/;
 
 if (!firebaseConfig) {
   window.FB = { error: 'config' };
