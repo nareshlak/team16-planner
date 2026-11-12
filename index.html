@@ -162,7 +162,7 @@ textarea{resize:vertical}
 .due.late{background:var(--danger-soft);color:var(--danger);font-weight:600}
 .due.soon{background:var(--tent-bg);color:var(--tent-ink)}
 .pill{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
-.av{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;border:2px solid #fff;margin-left:-5px}
+.av{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;border:2px solid var(--panel);margin-left:-5px}
 .avs{display:inline-flex;padding-left:5px}
 .addc{border:1px dashed var(--hover-line);background:none;border-radius:8px;padding:6px;color:var(--muted);font-size:12.5px}
 .addc:hover{color:var(--accent);border-color:var(--accent)}
@@ -281,8 +281,8 @@ textarea{resize:vertical}
 }
 .pres{display:inline-flex;align-items:center;padding-left:6px}
 .pres .lbl{font-size:12px;color:var(--muted);margin-right:8px}
-.av{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:11px;font-weight:600;font-style:normal;border:2px solid var(--bg);flex:none}
-.pres .av{margin-left:-6px}
+.pav{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:11px;font-weight:600;font-style:normal;border:2px solid var(--bg);flex:none}
+.pres .pav{margin-left:-6px}
 .act{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line2)}
 .act:first-of-type{border-top:0}
 .act ul{margin:4px 0 0;padding-left:18px;color:var(--ink2)}
@@ -310,6 +310,35 @@ textarea{resize:vertical}
   --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
   color-scheme:dark;}
 .themebtn{min-width:34px;justify-content:center}
+.me-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.me-head .big{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px;flex:none}
+.me-head h2{margin:0;font-size:19px}
+.me-head .role{color:var(--muted);font-size:12.5px}
+.me-stats{display:flex;gap:22px;margin-left:auto}
+.me-stats div{text-align:right}.me-stats b{display:block;font-size:20px;font-family:var(--mono)}.me-stats span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.me-stats .bad b{color:var(--danger)}
+.mgroup{margin-top:16px}
+.mgroup h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px;font-weight:600}
+.mgroup h3 .n{font-family:var(--mono);color:var(--faint);margin-left:6px}
+.mgroup.late h3{color:var(--danger)}
+.mylist{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel)}
+.myrow{display:grid;grid-template-columns:22px minmax(200px,1fr) 120px 132px 118px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line2);border-left:4px solid transparent}
+.myrow:last-child{border-bottom:0}
+.myrow.done .ttl{text-decoration:line-through;color:var(--muted)}
+.myrow .ttl{font-weight:500;cursor:pointer}.myrow .ttl:hover{color:var(--accent)}
+.myrow .cat{font-size:11.5px;color:var(--muted)}
+.myrow .with{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.mygoal{display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line2);cursor:pointer}
+.mygoal:last-child{border-bottom:0}.mygoal:hover .gt{color:var(--accent)}
+.mygoal .gs{margin-left:auto;font-size:12px;font-weight:600}
+@media (max-width:700px){
+  .myrow{grid-template-columns:22px 1fr 1fr}
+  .myrow .tcell{grid-column:2 / 4}
+  .myrow .duec{grid-column:2 / 4}
+  .myrow select[data-ch="t-pri"]{grid-column:2}
+  .myrow select[data-ch="t-status"]{grid-column:3}
+  .me-stats{margin-left:0}
+}
 @media print{.tabs,.toolbar,.save,.btn{display:none!important}.gantt{max-height:none}}
 </style></head><body><div id="app"></div><script type="module">
 // Firebase: Google sign-in + Firestore. The web config below is a public identifier, not a secret;
@@ -413,9 +442,9 @@ function overlaps(aS, aE, bS, bE) { return toN(aS) <= toN(bE) && toN(aE) >= toN(
 
 /* ---------- UI state (per viewer, survives reload) ---------- */
 var UI = { view: 'timeline', phaseId: S.currentPhase, groupBy: 'member', colorBy: 'member', showDone: true, scope: 'window',
-  boardWeek: 'all', boardSort: 'rank', hideDone: false, prMember: 'all', prHideDone: true, calTerm: 'fall', calTasks: true, member: 'all' };
+  boardWeek: 'all', boardSort: 'rank', hideDone: false, prMember: 'all', prHideDone: true, calTerm: 'fall', calTasks: true, member: 'all', mine: '', mineHideDone: true };
 try { var saved = JSON.parse(localStorage.getItem('t16-planner-ui') || '{}'); for (var k in saved) UI[k] = saved[k]; } catch (e) {}
-var VIEWS = ['timeline', 'board', 'priorities', 'calendar', 'goals', 'settings', 'activity'];
+var VIEWS = ['timeline', 'mine', 'board', 'priorities', 'calendar', 'goals', 'settings', 'activity'];
 if (location.hash && VIEWS.indexOf(location.hash.slice(1)) >= 0) UI.view = location.hash.slice(1);
 if (!phase(UI.phaseId)) UI.phaseId = S.currentPhase;
 function saveUI() { try { localStorage.setItem('t16-planner-ui', JSON.stringify(UI)); } catch (e) {} }
@@ -542,7 +571,7 @@ function avatar(p) {
   var n = p.by || p.name || '?', parts = String(n).replace(/[^A-Za-z\u00C0-\u024F' -]/g, ' ').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) parts = [String(p.email || '?')];
   var ini = parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '');
-  return '<i class="av" title="' + esc(p.title || n) + '" style="background:hsl(' + hue(p.email || n) + ',55%,42%)">' + esc(ini.toUpperCase()) + '</i>';
+  return '<i class="pav" title="' + esc(p.title || n) + '" style="background:hsl(' + hue(p.email || n) + ',55%,42%)">' + esc(ini.toUpperCase()) + '</i>';
 }
 function ago(iso) {
   var t = Date.parse(iso); if (!t) return '';
@@ -877,12 +906,12 @@ function renderApp() {
       '<div class="stat' + (late ? ' bad' : '') + '"><b>' + late + '</b><span>overdue</span></div>' +
       '<div class="stat"><b>' + thisWeek + '</b><span>due this week</span></div></div>' +
     '</div><div class="card next"><h3>Next key dates</h3><div class="next-list">' + (nextHtml || '<span class="muted">Nothing upcoming.</span>') + '</div></div></section>' +
-    '<nav class="tabs" role="tablist">' + [['timeline', 'Timeline'], ['board', 'Team board'], ['priorities', 'Priority ranking'], ['calendar', 'Semester calendar'], ['goals', 'Long-term goals'], ['settings', 'Team & phases'], ['activity', 'Activity']].map(function (v) {
+    '<nav class="tabs" role="tablist">' + [['timeline', 'Timeline'], ['mine', 'My tasks'], ['board', 'Team board'], ['priorities', 'Priority ranking'], ['calendar', 'Semester calendar'], ['goals', 'Long-term goals'], ['settings', 'Team & phases'], ['activity', 'Activity']].map(function (v) {
       return '<button class="tab' + (UI.view === v[0] ? ' on' : '') + '" role="tab" data-act="goto" data-v="' + v[0] + '">' + v[1] + '</button>';
     }).join('') + '</nav>' +
     '<main id="view"></main></div>';
   var v = document.getElementById('view');
-  ({ timeline: viewTimeline, board: viewBoard, priorities: viewPriorities, calendar: viewCalendar, goals: viewGoals, settings: viewSettings, activity: viewActivity }[UI.view] || viewTimeline)(v);
+  ({ timeline: viewTimeline, board: viewBoard, priorities: viewPriorities, calendar: viewCalendar, goals: viewGoals, settings: viewSettings, activity: viewActivity, mine: viewMine }[UI.view] || viewTimeline)(v);
   renderSave(); renderPresence();
 }
 
@@ -897,6 +926,76 @@ document.addEventListener('click', function (e) {
   b.outerHTML = themeBtn();
   toast(THEMES[next][1]);
 });
+
+/* ---------- MY TASKS (one person's to-do list) ---------- */
+function guessMe() {
+  var first = String((fbUser && fbUser.displayName) || '').toLowerCase().split(' ')[0];
+  var local = myEmail().split('@')[0];
+  var hit = S.members.filter(function (m) {
+    var mn = String(m.name || '').toLowerCase().split(' ')[0], sh = String(m.short || '').toLowerCase();
+    return (first && (mn === first || sh === first)) || (local && m.id && local.indexOf(String(m.id).toLowerCase()) >= 0);
+  })[0];
+  return hit ? hit.id : '';
+}
+function myRow(t, who) {
+  var others = (t.owners || []).filter(function (o) { return o !== who; });
+  var ph = phase(t.phase);
+  return '<div class="myrow' + (t.status === 'done' ? ' done' : '') + '" style="border-left-color:' + PCOL[t.priority] + '">' +
+    '<button class="box' + (t.status === 'done' ? ' on' : '') + '" data-act="check" data-id="' + t.id + '" aria-label="Mark done"></button>' +
+    '<div class="tcell"><div class="ttl" data-act="edit-task" data-id="' + t.id + '">' + esc(t.title) + '</div>' +
+      '<div class="cat">' + esc(t.category || '') + (ph ? (t.category ? ' · ' : '') + esc(ph.name) : '') +
+      (others.length ? ' · <span class="with">with ' + avatars(others) + '</span>' : '') + '</div>' + depLine(t) + '</div>' +
+    '<span class="duec">' + (dueChip(t) || '<span class="muted" style="font-size:12px">No deadline</span>') + '</span>' +
+    '<select data-ch="t-pri" data-id="' + t.id + '" aria-label="Priority">' + [1, 2, 3, 4].map(function (p) { return '<option value="' + p + '"' + (+t.priority === p ? ' selected' : '') + '>' + PRI[p] + '</option>'; }).join('') + '</select>' +
+    '<select data-ch="t-status" data-id="' + t.id + '" aria-label="Status">' + Object.keys(STATUS).map(function (st) { return '<option value="' + st + '"' + (t.status === st ? ' selected' : '') + '>' + STATUS[st] + '</option>'; }).join('') + '</select></div>';
+}
+function viewMine(v) {
+  var who = member(UI.mine) ? UI.mine : guessMe();
+  var picker = '<select data-ch="mine" aria-label="Whose list">' + (who ? '' : '<option value="">Pick your name…</option>') +
+    S.members.map(function (m) { return '<option value="' + m.id + '"' + (m.id === who ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('') + '</select>';
+  if (!who) {
+    v.innerHTML = '<div class="card" style="padding:20px"><h3>Whose to-do list?</h3><p class="muted">Pick your name and this tab will remember it on this device.</p>' + picker + '</div>';
+    return;
+  }
+  var m = member(who);
+  var mine = S.tasks.filter(function (t) { return (t.owners || []).indexOf(who) >= 0; });
+  var open = mine.filter(function (t) { return t.status !== 'done'; });
+  var wkEnd = TN + (6 - ((dow(TN) + 6) % 7));
+  var byPri = function (a, b) { return (a.priority - b.priority) || ((a.due ? toN(a.due) : 1e9) - (b.due ? toN(b.due) : 1e9)) || byRank(a, b); };
+  var groups = [
+    ['late', 'Overdue', open.filter(function (t) { return t.due && toN(t.due) < TN; })],
+    ['week', 'Due this week', open.filter(function (t) { return t.due && toN(t.due) >= TN && toN(t.due) <= wkEnd; })],
+    ['later', 'Coming up', open.filter(function (t) { return t.due && toN(t.due) > wkEnd; })],
+    ['none', 'No deadline', open.filter(function (t) { return !t.due; })]
+  ];
+  var done = mine.filter(function (t) { return t.status === 'done'; }).sort(function (a, b) { return toN(b.due || '2000-01-01') - toN(a.due || '2000-01-01'); });
+  if (!UI.mineHideDone) groups.push(['done', 'Done', done]);
+  var goals = S.goals.filter(function (g) { return (g.owners || []).indexOf(who) >= 0 && g.status !== 'done'; });
+
+  var html = '<div class="toolbar"><span class="muted" style="font-size:12.5px">Showing</span>' + picker +
+    '<label class="chk"><span class="box' + (UI.mineHideDone ? ' on' : '') + '" data-act="toggle" data-k="mineHideDone"></span>Hide done</label><span class="sp"></span>' +
+    '<button class="btn primary" data-act="new-task" data-lane="' + who + '">+ Task for ' + esc(member(who).short || member(who).name) + '</button></div>';
+  html += '<div class="card me-head"><span class="big" style="background:' + mcolor(who) + '">' + esc(initials(m)) + '</span>' +
+    '<div><h2>' + esc(m.name) + '</h2><div class="role">' + esc(m.role || '') + '</div></div>' +
+    '<div class="me-stats"><div><b>' + open.length + '</b><span>open</span></div>' +
+    '<div class="' + (groups[0][2].length ? 'bad' : '') + '"><b>' + groups[0][2].length + '</b><span>overdue</span></div>' +
+    '<div><b>' + groups[1][2].length + '</b><span>this week</span></div>' +
+    '<div><b>' + done.length + '</b><span>done</span></div></div></div>';
+  var any = false;
+  groups.forEach(function (g) {
+    if (!g[2].length) return; any = true;
+    var list = g[0] === 'done' ? g[2] : g[2].slice().sort(byPri);
+    html += '<div class="mgroup ' + g[0] + '"><h3>' + g[1] + '<span class="n">' + g[2].length + '</span></h3><div class="mylist">' + list.map(function (t) { return myRow(t, who); }).join('') + '</div></div>';
+  });
+  if (!any) html += '<div class="card" style="margin-top:16px;padding:18px"><p class="muted" style="margin:0">Nothing on ' + esc(m.short || m.name) + '’s list right now. 🎉</p></div>';
+  if (goals.length) {
+    html += '<div class="mgroup"><h3>Long-term goals<span class="n">' + goals.length + '</span></h3><div class="mylist">' + goals.map(function (g) {
+      return '<div class="mygoal" data-act="edit-goal" data-id="' + g.id + '"><span class="gt">' + esc(g.title) + '</span><span class="muted" style="font-size:12px">' + fmt(g.end) + '</span><span class="gs" style="color:' + (GCOL[g.status] || 'var(--muted)') + '">' + esc(g.status) + '</span></div>';
+    }).join('') + '</div></div>';
+  }
+  html += '<p class="hint">Sorted by priority, then deadline. Click a task to edit it, or tick the box to mark it done.</p>';
+  v.innerHTML = html;
+}
 
 function viewActivity(v) {
   var on = online();
@@ -1464,7 +1563,7 @@ document.addEventListener('change', function (e) {
   var el = e.target, ch = el.getAttribute && el.getAttribute('data-ch'); if (!ch) return;
   var id = el.getAttribute('data-id');
   if (ch === 'phase') { UI.phaseId = el.value; UI.boardWeek = 'all'; render(); return; }
-  if (ch === 'boardWeek' || ch === 'member' || ch === 'prMember') { UI[ch] = el.value; render(); return; }
+  if (ch === 'boardWeek' || ch === 'member' || ch === 'prMember' || ch === 'mine') { UI[ch] = el.value; render(); return; }
   if (locked()) { toast(mode === 'connecting' ? 'Still loading the team’s data…' : 'View only'); render(); return; }
   if (ch === 't-pri') { task(id).priority = +el.value; }
   else if (ch === 't-status') { task(id).status = el.value; }
