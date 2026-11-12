@@ -275,13 +275,23 @@ textarea{resize:vertical}
   .set-grid{grid-template-columns:1fr}
   .fgrid{grid-template-columns:1fr}
 }
+.pres{display:inline-flex;align-items:center;padding-left:6px}
+.pres .lbl{font-size:12px;color:var(--muted);margin-right:8px}
+.av{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:11px;font-weight:600;font-style:normal;border:2px solid var(--bg);flex:none}
+.pres .av{margin-left:-6px}
+.act{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line2)}
+.act:first-of-type{border-top:0}
+.act ul{margin:4px 0 0;padding-left:18px;color:var(--ink2)}
+.here{display:flex;flex-wrap:wrap;gap:12px}
+.here span{display:inline-flex;align-items:center;gap:6px}
+.edited{margin:-6px 0 12px;font-size:12.5px;color:var(--muted)}
 @media print{.tabs,.toolbar,.save,.btn{display:none!important}.gantt{max-height:none}}
 </style></head><body><div id="app"></div><script type="module">
 // Firebase: Google sign-in + Firestore. The web config below is a public identifier, not a secret;
 // access is controlled by the Firestore security rules (team email list).
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig = /*FIREBASE_CONFIG*/{
   apiKey: "AIzaSyDaNKQ8PaRdD7fTHehgBZ8Z8RTVOTN5Sc8",
@@ -312,6 +322,9 @@ if (!firebaseConfig) {
   };
   const db = {
     doc: docRef,
+    recent: (c, field, n, next, err) => onSnapshot(query(collection(fs, c), orderBy(field, 'desc'), limit(n)),
+      (q) => next({ docs: q.docs.map(wrapDoc), empty: q.empty, size: q.size, metadata: q.metadata }),
+      (e) => err && err(errOf(e))),
     collection: (c) => ({
       doc: (id) => docRef(c + '/' + id),
       onSnapshot: (next, err) => onSnapshot(collection(fs, c),
@@ -377,7 +390,7 @@ function overlaps(aS, aE, bS, bE) { return toN(aS) <= toN(bE) && toN(aE) >= toN(
 var UI = { view: 'timeline', phaseId: S.currentPhase, groupBy: 'member', colorBy: 'member', showDone: true, scope: 'window',
   boardWeek: 'all', boardSort: 'rank', hideDone: false, prMember: 'all', prHideDone: true, calTerm: 'fall', calTasks: true, member: 'all' };
 try { var saved = JSON.parse(localStorage.getItem('t16-planner-ui') || '{}'); for (var k in saved) UI[k] = saved[k]; } catch (e) {}
-var VIEWS = ['timeline', 'board', 'priorities', 'calendar', 'goals', 'settings'];
+var VIEWS = ['timeline', 'board', 'priorities', 'calendar', 'goals', 'settings', 'activity'];
 if (location.hash && VIEWS.indexOf(location.hash.slice(1)) >= 0) UI.view = location.hash.slice(1);
 if (!phase(UI.phaseId)) UI.phaseId = S.currentPhase;
 function saveUI() { try { localStorage.setItem('t16-planner-ui', JSON.stringify(UI)); } catch (e) {} }
@@ -494,6 +507,88 @@ function applyRemote() {
 }
 setInterval(function () { if (remotePending) applyRemote(); }, 700);
 
+/* ---------- who is editing ---------- */
+var presence = {}, activity = [], actSeen = null;
+function myEmail() { return ((fbUser && fbUser.email) || '').toLowerCase(); }
+function myName() { return (fbUser && (fbUser.displayName || myEmail().split('@')[0])) || 'Someone'; }
+function firstName(n) { return String(n || 'Someone').split(' ')[0]; }
+function hue(str) { var h = 0; str = String(str || ''); for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360; return h; }
+function avatar(p) {
+  var n = p.by || p.name || '?', parts = String(n).split(' ');
+  var ini = (parts[0][0] || '?') + (parts.length > 1 ? (parts[parts.length - 1][0] || '') : '');
+  return '<i class="av" title="' + esc(n) + '" style="background:hsl(' + hue(p.email || n) + ',55%,42%)">' + esc(ini.toUpperCase()) + '</i>';
+}
+function ago(iso) {
+  var t = Date.parse(iso); if (!t) return '';
+  var s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + ' min ago'; if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+  var d = new Date(t); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+function editedNote(x) { return x && x.editedAt ? '<p class="edited">Last edited by ' + esc(firstName(x.editedBy)) + ' · ' + ago(x.editedAt) + '</p>' : ''; }
+function stamp(it) { it.editedBy = myName(); it.editedByEmail = myEmail(); it.editedAt = new Date().toISOString(); }
+var LABEL = { tasks: 'task', milestones: 'key date', goals: 'goal', phases: 'phase', members: 'team member', semesters: 'semester' };
+var SKIPF = { editedBy: 1, editedByEmail: 1, editedAt: 1, rank: 1, short: 1 };
+var FNAME = { owners: 'owners', notes: 'notes', priority: 'priority', category: 'workstream', dependsOn: 'hand-off', phase: 'phase', start: 'start date', due: 'deadline', date: 'date', end: 'end date', kind: 'type', major: 'major', tentative: 'tentative', term: 'term', goal: 'phase goal', role: 'role', color: 'color', breakWeeks: 'break weeks', status: 'status' };
+function nameOf(x) { return (x && (x.title || x.name)) || 'untitled'; }
+function describe(c, prev, it) {
+  var L = LABEL[c] || c, n = '“' + nameOf(it) + '”';
+  if (!prev) return 'added ' + L + ' ' + n;
+  var keys = {}; Object.keys(prev).concat(Object.keys(it)).forEach(function (k) { keys[k] = 1; });
+  var ch = Object.keys(keys).filter(function (k) { return !SKIPF[k] && canon(prev[k]) !== canon(it[k]); });
+  if (!ch.length) return canon(prev.rank) !== canon(it.rank) ? 'reordered the priority ranking' : '';
+  if (ch.indexOf('title') >= 0 || ch.indexOf('name') >= 0) {
+    var r = 'renamed ' + L + ' “' + nameOf(prev) + '” to ' + n;
+    ch = ch.filter(function (k) { return k !== 'title' && k !== 'name'; });
+    if (!ch.length) return r;
+  }
+  if (c === 'tasks' && ch.length === 1 && ch[0] === 'status') return it.status === 'done' ? 'marked task ' + n + ' done' : 'set task ' + n + ' to ' + (STATUS[it.status] || it.status);
+  if (c === 'tasks' && ch.every(function (k) { return k === 'start' || k === 'due'; })) return 'moved task ' + n + ' (due ' + fmt(it.due) + ')';
+  if (c === 'goals' && ch.length === 1 && ch[0] === 'status') return 'set goal ' + n + ' to ' + it.status;
+  return 'edited ' + L + ' ' + n + ' (' + ch.map(function (k) { return FNAME[k] || k; }).join(', ') + ')';
+}
+function describeMeta(k) {
+  if (k === 'currentPhase') { var ph = phase(S.currentPhase); return 'set the current phase to “' + (ph ? ph.name : S.currentPhase) + '”'; }
+  if (k === 'categories') return 'edited the workstream list';
+  if (k.indexOf('order_') === 0) return '';
+  return 'edited the project details';
+}
+function online() {
+  var now = Date.now();
+  return Object.keys(presence).map(function (id) { return presence[id]; })
+    .filter(function (p) { return p && now - Date.parse(p.at) < 150000; })
+    .sort(function (a, b) { return (b.email === myEmail()) - (a.email === myEmail()) || String(a.name).localeCompare(String(b.name)); });
+}
+function renderPresence() {
+  var el = document.getElementById('presence'); if (!el) return;
+  var on = online();
+  el.innerHTML = on.length ? '<span class="lbl">' + (on.length === 1 ? 'Just you' : on.length + ' here') + '</span>' +
+    on.slice(0, 7).map(function (p) { return avatar({ name: p.name + (p.email === myEmail() ? ' (you)' : ''), email: p.email }); }).join('') : '';
+}
+function beat() {
+  if (!db || !fbUser || document.hidden) return;
+  db.doc('presence/' + fbUser.uid).set({ name: myName(), email: myEmail(), at: new Date().toISOString() }).catch(function () {});
+}
+function startCollab() {
+  beat(); setInterval(beat, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) beat(); });
+  setInterval(renderPresence, 30000);
+  db.collection('presence').onSnapshot(function (snap) {
+    presence = {}; snap.docs.forEach(function (d) { presence[d.id] = d.data(); });
+    renderPresence();
+    if (gate === 'app' && UI.view === 'activity' && !busy()) rerender();
+  }, function () {});
+  db.recent('activity', 'at', 60, function (snap) {
+    var list = snap.docs.map(function (d) { var a = d.data(); a.id = d.id; return a; });
+    if (actSeen) list.forEach(function (a) {
+      if (!actSeen[a.id] && a.email !== myEmail() && a.lines && a.lines.length)
+        toast(firstName(a.by) + ' ' + a.lines[0] + (a.lines.length > 1 ? ' (+' + (a.lines.length - 1) + ' more)' : ''));
+    });
+    actSeen = {}; list.forEach(function (a) { actSeen[a.id] = 1; });
+    activity = list;
+    if (gate === 'app' && UI.view === 'activity' && !busy()) rerender();
+  }, function () {});
+}
+
 function markDirty() {
   dirty = true; renderSave();
   if (timer) clearTimeout(timer);
@@ -511,24 +606,38 @@ function flush() {
   if (busy() || mode === 'saving') { timer = setTimeout(flush, 800); return; }
   if (mode !== 'live') { renderSave(); return; }
   if (remotePending) applyRemote();
-  var ops = [];
+  var ops = [], log = [];
+  var seeding = !remote.meta && Object.keys(smeta).length === 0;
   COLS.forEach(function (c) {
     var seen = {};
     (S[c] || []).forEach(function (it) {
       if (!okId(it.id)) return;
       seen[it.id] = 1;
       var j = canon(it);
-      if (synced[c][it.id] !== j) ops.push({ ref: db.collection(c).doc(it.id), body: clone(it), done: function () { synced[c][it.id] = j; } });
+      if (synced[c][it.id] !== j) {
+        if (!seeding) {
+          var line = describe(c, synced[c][it.id] ? JSON.parse(synced[c][it.id]) : null, it);
+          if (line) log.push(line);
+          stamp(it); j = canon(it);
+        }
+        ops.push({ ref: db.collection(c).doc(it.id), body: clone(it), done: function () { synced[c][it.id] = j; } });
+      }
     });
     Object.keys(synced[c]).forEach(function (id) {
-      if (!seen[id]) ops.push({ ref: db.collection(c).doc(id), del: true, done: function () { delete synced[c][id]; } });
+      if (!seen[id]) {
+        try { log.push('deleted ' + (LABEL[c] || c) + ' “' + nameOf(JSON.parse(synced[c][id])) + '”'); } catch (e) {}
+        ops.push({ ref: db.collection(c).doc(id), del: true, done: function () { delete synced[c][id]; } });
+      }
     });
   });
   var lm = localMeta(), patch = {}, np = 0, metaExists = !!remote.meta || Object.keys(smeta).length > 0;
-  Object.keys(lm).forEach(function (k) { if (canon(lm[k]) !== smeta[k]) { patch[k] = clone(lm[k]); np++; } });
+  Object.keys(lm).forEach(function (k) { if (canon(lm[k]) !== smeta[k]) { patch[k] = clone(lm[k]); np++; if (!seeding) { var ml = describeMeta(k); if (ml) log.push(ml); } } });
   if (np) ops.push({ ref: db.doc('meta/main'), body: metaExists ? patch : clone(lm), merge: metaExists,
     done: function () { Object.keys(patch).forEach(function (k) { smeta[k] = canon(patch[k]); }); } });
   dirty = false;
+  if (seeding && ops.length) log = ['set up the planner'];
+  log = log.filter(function (l, i) { return log.indexOf(l) === i; });
+  if (log.length && ops.length) ops.push({ ref: db.collection('activity').doc(uid('a')), body: { by: myName(), email: myEmail(), at: new Date().toISOString(), lines: log.slice(0, 20), more: Math.max(0, log.length - 20) }, done: function () {} });
   if (!ops.length) { renderSave(); return; }
   mode = 'saving'; renderSave();
   var i = 0, active = 0, failed = null;
@@ -593,6 +702,7 @@ function subscribe(d) {
     remote.meta = snap.exists ? snap.data() : null; remote.metaSeen = true; landed();
   }, onErr);
 }
+var collabStarted = false;
 (function startFB() {
   var F = window.FB;
   if (!F) { window.addEventListener('fb-ready', startFB, { once: true }); return; }
@@ -601,6 +711,7 @@ function subscribe(d) {
     if (!u) { if (fbUser) { location.reload(); return; } gate = 'signin'; render(); return; }
     if (fbUser && fbUser.uid === u.uid) return;
     fbUser = u; gate = 'loading'; render(); subscribe(F.db);
+    if (!collabStarted) { collabStarted = true; startCollab(); }
   });
 })();
 function locked() { return mode === 'readonly' || mode === 'connecting'; }
@@ -684,7 +795,7 @@ document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-gate]'); if (!b) return;
   var g = b.getAttribute('data-gate');
   if (g === 'signin') window.FB.signIn().catch(function (err) { if (!/popup-closed|cancelled-popup/.test((err && err.code) || '')) toast('Sign-in didn’t finish: ' + ((err && err.code) || 'unknown error')); });
-  if (g === 'signout') window.FB.signOut();
+  if (g === 'signout') { var pd = (db && fbUser) ? db.doc('presence/' + fbUser.uid).delete().catch(function () {}) : Promise.resolve(); pd.then(function () { window.FB.signOut(); }); }
   if (g === 'setup') {
     try {
       var data = JSON.parse(document.getElementById('setup-json').value);
@@ -721,7 +832,7 @@ function renderApp() {
   app.innerHTML =
     '<div class="wrap">' +
     '<header class="top"><div><div class="eyebrow">' + esc(S.team) + ' · ' + esc(S.project) + ' · ' + esc(S.client) + '</div><h1>Project Planner</h1></div>' +
-    '<div class="top-right"><span id="save" class="save"></span><button class="btn" data-act="new-ms">+ Key date</button><button class="btn primary" data-act="new-task">+ Task</button></div></header>' +
+    '<div class="top-right"><span id="presence" class="pres"></span><span id="save" class="save"></span><button class="btn" data-act="new-ms">+ Key date</button><button class="btn primary" data-act="new-task">+ Task</button></div></header>' +
     (mode === 'readonly' ? '<div class="banner">You can view this planner but not edit it. Ask the owner to share edit access.</div>' : '') +
     '<section class="hero"><div class="card">' +
       '<div class="phase-row"><select data-ch="phase" aria-label="Phase">' + phaseOpts + '</select>' +
@@ -734,13 +845,25 @@ function renderApp() {
       '<div class="stat' + (late ? ' bad' : '') + '"><b>' + late + '</b><span>overdue</span></div>' +
       '<div class="stat"><b>' + thisWeek + '</b><span>due this week</span></div></div>' +
     '</div><div class="card next"><h3>Next key dates</h3><div class="next-list">' + (nextHtml || '<span class="muted">Nothing upcoming.</span>') + '</div></div></section>' +
-    '<nav class="tabs" role="tablist">' + [['timeline', 'Timeline'], ['board', 'Team board'], ['priorities', 'Priority ranking'], ['calendar', 'Semester calendar'], ['goals', 'Long-term goals'], ['settings', 'Team & phases']].map(function (v) {
+    '<nav class="tabs" role="tablist">' + [['timeline', 'Timeline'], ['board', 'Team board'], ['priorities', 'Priority ranking'], ['calendar', 'Semester calendar'], ['goals', 'Long-term goals'], ['settings', 'Team & phases'], ['activity', 'Activity']].map(function (v) {
       return '<button class="tab' + (UI.view === v[0] ? ' on' : '') + '" role="tab" data-act="goto" data-v="' + v[0] + '">' + v[1] + '</button>';
     }).join('') + '</nav>' +
     '<main id="view"></main></div>';
   var v = document.getElementById('view');
-  ({ timeline: viewTimeline, board: viewBoard, priorities: viewPriorities, calendar: viewCalendar, goals: viewGoals, settings: viewSettings }[UI.view] || viewTimeline)(v);
-  renderSave();
+  ({ timeline: viewTimeline, board: viewBoard, priorities: viewPriorities, calendar: viewCalendar, goals: viewGoals, settings: viewSettings, activity: viewActivity }[UI.view] || viewTimeline)(v);
+  renderSave(); renderPresence();
+}
+
+function viewActivity(v) {
+  var on = online();
+  var html = '<div class="card" style="margin-bottom:12px"><h3>Here now</h3><div class="here">' +
+    (on.length ? on.map(function (p) { return '<span>' + avatar({ name: p.name, email: p.email }) + esc(p.name) + (p.email === myEmail() ? ' <span class="muted">(you)</span>' : '') + '</span>'; }).join('') : '<span class="muted">Just you</span>') +
+    '</div></div>';
+  html += '<div class="card"><h3>Recent changes</h3>' + (activity.length ? activity.map(function (a) {
+    return '<div class="act">' + avatar(a) + '<div><b>' + esc(a.by || 'Someone') + '</b> <span class="muted">· ' + esc(ago(a.at)) + '</span><ul>' +
+      (a.lines || []).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + (a.more ? '<li class="muted">and ' + a.more + ' more</li>' : '') + '</ul></div></div>';
+  }).join('') : '<p class="muted">No changes yet. Edits anyone makes will show up here.</p>') + '</div>';
+  v.innerHTML = html;
 }
 
 function scopeToggle() {
@@ -1140,7 +1263,7 @@ function openTask(id, preset) {
     }
   }
   var deps = S.tasks.filter(function (x) { return x.id !== t.id; }).sort(function (a, b) { return toN(a.due) - toN(b.due); });
-  var html = '<h2>' + (isNew ? 'New task' : 'Edit task') + '</h2><div class="fgrid">' +
+  var html = '<h2>' + (isNew ? 'New task' : 'Edit task') + '</h2>' + (isNew ? '' : editedNote(t)) + '<div class="fgrid">' +
     '<label class="f full"><span>Task</span><input type="text" name="title" value="' + esc(t.title) + '" placeholder="What needs to happen?"></label>' +
     '<div class="f full"><span>Owners</span>' + ownerPicker(t.owners || []) + '</div>' +
     '<label class="f"><span>Start</span><input type="date" name="start" value="' + esc(t.start) + '"></label>' +
@@ -1170,7 +1293,7 @@ function openMs(id, date) {
   var isNew = !id;
   var m = isNew ? { title: '', date: date || TODAY, end: '', kind: 'team', major: false, tentative: false, notes: '' } : byId(S.milestones, id);
   if (!m) return;
-  var html = '<h2>' + (isNew ? 'New key date' : 'Edit key date') + '</h2><div class="fgrid">' +
+  var html = '<h2>' + (isNew ? 'New key date' : 'Edit key date') + '</h2>' + (isNew ? '' : editedNote(m)) + '<div class="fgrid">' +
     '<label class="f full"><span>Title</span><input type="text" name="title" value="' + esc(m.title) + '" placeholder="e.g. Ship prototypes to the client"></label>' +
     '<label class="f"><span>Date</span><input type="date" name="date" value="' + esc(m.date) + '"></label>' +
     '<label class="f"><span>End date (optional, for ranges)</span><input type="date" name="end" value="' + esc(m.end || '') + '"></label>' +
@@ -1190,7 +1313,7 @@ function openGoal(id) {
   var isNew = !id;
   var g = isNew ? { title: '', owners: [], start: TODAY, end: toISO(TN + 21), term: TN > toN('2026-12-11') ? 'spring' : 'fall', status: 'planned', notes: '' } : byId(S.goals, id);
   if (!g) return;
-  var html = '<h2>' + (isNew ? 'New long-term goal' : 'Edit long-term goal') + '</h2><div class="fgrid">' +
+  var html = '<h2>' + (isNew ? 'New long-term goal' : 'Edit long-term goal') + '</h2>' + (isNew ? '' : editedNote(g)) + '<div class="fgrid">' +
     '<label class="f full"><span>Goal</span><input type="text" name="title" value="' + esc(g.title) + '"></label>' +
     '<div class="f full"><span>Owners</span>' + ownerPicker(g.owners || []) + '</div>' +
     '<label class="f"><span>Start</span><input type="date" name="start" value="' + esc(g.start) + '"></label>' +
