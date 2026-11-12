@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0e6b6b"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- speculum: upper and lower lid blades joined by a C-shaped wire spring -->
+    <path d="M16 21 Q30 9 44 19" stroke-width="3.2"/>
+    <path d="M16 43 Q30 55 44 45" stroke-width="3.2"/>
+    <path d="M44 19 C57 23 57 41 44 45" stroke-width="3.2"/>
+    <!-- eye -->
+    <path d="M11 32 Q28 18 45 32 Q28 46 11 32 Z" stroke-width="2.6"/>
+  </g>
+  <circle cx="28" cy="32" r="6.5" fill="#fff"/>
+  <circle cx="28" cy="32" r="2.8" fill="#0e6b6b"/>
+</svg>
